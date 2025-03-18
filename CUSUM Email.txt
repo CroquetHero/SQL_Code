@@ -1,0 +1,102 @@
+#!/home/miniconda/bin/python
+
+import requests
+from requests.auth import HTTPBasicAuth
+import glob
+import os
+import fpdf
+import datetime as dt
+import dateutil.relativedelta
+
+#import smtplib for the actual sending function
+import smtplib
+
+# Import the email modules we'll need
+import mimetypes
+from email.mime.multipart import MIMEMultipart
+from email import encoders
+from email.message import Message
+from email.mime.audio import MIMEAudio
+from email.mime.base import MIMEBase
+from email.mime.image import MIMEImage
+from email.mime.text import MIMEText
+
+#Select Email Data
+date1 = dt.datetime.now()
+Formdate = dt.datetime.date(date1)
+EndDate = Formdate - dt.timedelta(days=1)
+StartDate = EndDate - dateutil.relativedelta.relativedelta(days=7)
+
+#Grab list of PNG names
+PNGList = glob.glob('/drhome/cstark/PythonScripts/CUSUM/*.png')
+
+pdf = fpdf.FPDF()
+
+for png in PNGList:
+    pdf.add_page()
+    pdf.image(png,0,0,200,150)
+
+pdf.output("CUSUM_Charts.pdf", "F")
+
+textfile = 'AE_CUSUM.png'
+pdffile = 'CUSUM_Charts.pdf'
+me = 'cstark@digitalriver.com'
+you = 'cstark@digitalriver.com'
+
+#me = 'jdanek@digitalriver.com'
+#you = 'jdanek@digitalriver.com'
+
+# Create a text/plain message
+msg = MIMEMultipart()
+ctype, encoding = mimetypes.guess_type(pdffile)
+if ctype is None or encoding is not None:
+    ctype = "application/octet-stream"
+
+maintype, subtype = ctype.split("/", 1)
+
+if maintype == "text":
+    fp = open(pdffile)
+    # Note: we should handle calculating the charset
+    attachment = MIMEText(fp.read(), _subtype=subtype)
+    fp.close()
+elif maintype == "image":
+    fp = open(pdffile, "rb")
+    attachment = MIMEImage(fp.read(), _subtype=subtype)
+    fp.close()
+elif maintype == "audio":
+    fp = open(pdffile, "rb")
+    attachment = MIMEAudio(fp.read(), _subtype=subtype)
+    fp.close()
+else:
+    fp = open(pdffile, "rb")
+    attachment = MIMEBase(maintype, subtype)
+    attachment.set_payload(fp.read())
+    fp.close()
+    encoders.encode_base64(attachment)
+attachment.add_header("Content-Disposition", "attachment", filename=pdffile)
+
+msg.attach(attachment)
+
+#Email Body
+body = MIMEText("See attached PDF File of CUSUM charts and respective plots. Subscriptions are One Year only.\n\n Thanks!")
+msg.attach(body)
+
+# me == the sender's email address
+# you == the recipient's email address
+msg['Subject'] = 'CUSUM Charts - Issuer Country: Week of ' + str(StartDate) + ' and ' + str(EndDate)
+msg['From'] = me
+msg['To'] = you
+
+# Send the message via our own SMTP server, but don't include the
+# envelope header.
+s = smtplib.SMTP('smtp.wipint.digitalriverws.net')
+s.sendmail(me, [you], msg.as_string())
+s.quit()
+
+#Remove All PNG Files
+dir_name = '/drhome/cstark/PythonScripts/CUSUM/'
+dir_name2 = os.listdir(dir_name)
+
+for png in dir_name2:
+    if png.endswith('.png'):
+        os.remove(os.path.join(dir_name, png))

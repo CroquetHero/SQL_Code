@@ -1,0 +1,147 @@
+select stats.divisionsiteid
+,stats.ORDER_DATE
+,stats.Comp_units
+,stats.total_units
+,stats.Auth_Rate
+,stats.Auth_STD
+,all_Data.total_units All_Units
+
+from
+(
+select Total.divisionsiteid
+,to_char(Total.order_date, 'YYYY-MM-DD')ORDER_DATE
+,nvl(Comp_units,0)Comp_units
+,total_units
+,round(nvl(Comp_units,0)/total_units,3)Auth_Rate
+,round(sqrt(round(nvl(Comp_units,0)/total_units,2)*(1-round(nvl(Comp_units,0)/total_units,2))/total_units),5) Auth_STD
+
+from
+(
+select divisionsiteid
+,order_date
+,count(transactionid)Comp_units
+--select *
+
+from
+(
+select bin
+,divisionsiteid
+,rank() over (partition by divisionorderid order by transactionid)cpg_attempt
+,trunc(orderdate)order_date
+,transactionid
+,(select contract_term_code from AUTH_STAGING_DFACT_VW where payment_id = (select payment_id from rcn_auth_trans where cpg_transaction_id = transactionid and rownum < 2))Sub_Type
+
+--select *
+from EREPORT.cpg_transactions ct
+
+where creationdate between trunc(sysdate) - 75 and trunc(sysdate) - 1
+and orderdate >= trunc(sysdate) - 75
+and transactiontype = 'Authorize'
+and subscriptionid is not null
+and renewattnum is not null
+and oldstatus = 'New'
+and newstatus = 'Completed'
+and renewattnum in ('1')
+and paymentmethodid in ('AmericanExpress','Visa','Discover','MasterCard')
+--and bin = '414720'
+--and addedexpiryyears is not null
+)
+
+where cpg_attempt = '1'
+and sub_type = 'Year 1'
+
+group by divisionsiteid
+,order_date
+
+)Completed
+
+right join
+
+(
+select divisionsiteid
+,order_date
+,count(transactionid)total_units
+--select *
+
+from
+(
+select bin
+,divisionsiteid
+,rank() over (partition by divisionorderid order by transactionid)cpg_attempt
+,trunc(orderdate)order_date
+,transactionid
+,(select contract_term_code from AUTH_STAGING_DFACT_VW where payment_id = (select payment_id from rcn_auth_trans where cpg_transaction_id = transactionid and rownum < 2))Sub_Type
+
+--select *
+from EREPORT.cpg_transactions ct
+
+where creationdate between trunc(sysdate) - 75 and trunc(sysdate) - 1
+and orderdate >= trunc(sysdate) - 75
+and transactiontype = 'Authorize'
+and subscriptionid is not null
+and renewattnum is not null
+and oldstatus = 'New'
+and renewattnum in ('1')
+and paymentmethodid in ('AmericanExpress','Visa','Discover','MasterCard')
+--and bin = '414720'
+--and addedexpiryyears is not null
+)
+
+where cpg_attempt = '1'
+and sub_type = 'Year 1'
+
+group by divisionsiteid
+,order_date
+
+)Total
+
+on Total.divisionsiteid = Completed.divisionsiteid
+and Total.order_date = Completed.order_date
+
+--where Total_units > 50
+
+order by divisionsiteid,order_date
+
+)Stats
+
+left join
+
+(
+
+select divisionsiteid
+,count(transactionid)total_units
+--select *
+
+from
+(
+select bin
+,divisionsiteid
+,rank() over (partition by divisionorderid order by transactionid)cpg_attempt
+,trunc(orderdate)order_date
+,transactionid
+,(select contract_term_code from AUTH_STAGING_DFACT_VW where payment_id = (select payment_id from rcn_auth_trans where cpg_transaction_id = transactionid and rownum < 2))Sub_Type
+
+--select *
+from EREPORT.cpg_transactions ct
+
+where creationdate between trunc(sysdate) - 75 and trunc(sysdate) - 1
+and orderdate >= trunc(sysdate) - 75
+and transactiontype = 'Authorize'
+and subscriptionid is not null
+and renewattnum is not null
+and oldstatus = 'New'
+and renewattnum in ('1')
+and paymentmethodid in ('AmericanExpress','Visa','Discover','MasterCard')
+--and bin = '414720'
+--and addedexpiryyears is not null
+)
+
+where cpg_attempt = '1'
+and sub_type = 'Year 1'
+
+group by divisionsiteid
+
+)All_Data
+on All_Data.divisionsiteid = Stats.divisionsiteid
+
+where all_Data.total_units > 1000

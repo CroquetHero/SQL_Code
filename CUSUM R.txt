@@ -1,0 +1,41 @@
+library('qcc')
+Data <-read.csv("CUSUM_Data.csv", header=T)
+
+CTRY_List = unique(Data$ISSUERCOUNTRY)
+out <- split(Data, f=Data$ISSUERCOUNTRY)
+#pdf('CUSUM_Plots.pdf')
+
+for (n in CTRY_List){
+
+LabelDates <-out[[n]]$ORDER_DATE
+
+#out[[n]]$ORDER_DATE <- as.Date(out[[n]]$ORDER_DATE, "%m/%d/%Y")
+out[[n]] = out[[n]][order(as.Date(out[[n]]$ORDER_DATE, format="%d/%m/%Y")),]
+CusumSD = sd.xbar.one(out[[n]]$AUTH_RATE[1:(length(out[[n]]$AUTH_RATE) - 7)], out[[n]]$ORDER_DATE[1:(length(out[[n]]$AUTH_RATE) - 7)])
+
+Cusum2 = cusum(out[[n]]$AUTH_RATE[1:(length(out[[n]]$AUTH_RATE) - 7)], std.dev=CusumSD, labels=LabelDates[1:(length(out[[n]]$AUTH_RATE) - 7)], newdata=out[[n]]$AUTH_RATE[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], newlabels=LabelDates[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], title=paste("Country",n,"CUSUM Chart", sep=" "), xlab="ORDER_DATE")
+
+if(length(Cusum2$violations$lower[Cusum2$violations$lower > (length(out[[n]]$AUTH_RATE) - 6)])  > 0 || length(Cusum2$violations$lower[Cusum2$violations$upper > (length(out[[n]]$AUTH_RATE) - 6)]) > 0){
+
+Cusum2 = cusum(out[[n]]$AUTH_RATE[1:(length(out[[n]]$AUTH_RATE) - 7)], std.dev=CusumSD, labels=LabelDates[1:(length(out[[n]]$AUTH_RATE) - 7)], newdata=out[[n]]$AUTH_RATE[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], newlabels=LabelDates[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], title=paste("Country:",n,"CUSUM Chart", sep=" "), xlab="ORDER_DATE")
+png(filename=paste(n,"_CUSUM.png", sep=""), units ="px", width=720, height=480)
+
+Cusum2 = cusum(out[[n]]$AUTH_RATE[1:(length(out[[n]]$AUTH_RATE) - 7)], std.dev=CusumSD, labels=LabelDates[1:(length(out[[n]]$AUTH_RATE) - 7)], newdata=out[[n]]$AUTH_RATE[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], newlabels=LabelDates[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], title=paste("Country:",n,"CUSUM Chart", sep=" "), xlab="ORDER_DATE")
+
+dev.off()
+
+Plot1 = qcc(out[[n]]$AUTH_RATE[1:(length(out[[n]]$AUTH_RATE) - 7)], type="xbar.one",std.dev=CusumSD, labels=LabelDates[1:(length(out[[n]]$AUTH_RATE) - 7)], newdata=out[[n]]$AUTH_RATE[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], newlabels=LabelDates[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], title=paste("Country:",n,"Control Chart", sep=" "), xlab="ORDER_DATE")
+
+png(filename=paste(n,"_Plot.png", sep=""), units ="px", width=720, height=480)
+
+Plot1 = qcc(out[[n]]$AUTH_RATE[1:(length(out[[n]]$AUTH_RATE) - 7)], type="xbar.one",std.dev=CusumSD, labels=LabelDates[1:(length(out[[n]]$AUTH_RATE) - 7)], newdata=out[[n]]$AUTH_RATE[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], newlabels=LabelDates[(length(out[[n]]$AUTH_RATE) - 6):length(out[[n]]$AUTH_RATE)], title=paste("Country:",n,"Control Chart", sep=" "), xlab="ORDER_DATE")
+
+dev.off()
+
+print(n)
+
+}
+
+}
+
+dev.off()

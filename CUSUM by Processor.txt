@@ -1,0 +1,177 @@
+#!/home/miniconda/bin/python
+
+import cx_Oracle
+import csv
+import os
+import pandas
+
+execfile('/drhome/cstark/PythonScripts/Passwords.py')
+
+query= """
+
+select stats.paymentserviceid
+,stats.ORDER_DATE
+,stats.Comp_units
+,stats.total_units
+,stats.Auth_Rate
+,stats.Auth_STD
+,all_Data.total_units All_Units
+
+from
+(
+select Total.paymentserviceid
+,to_char(Total.order_date, 'YYYY-MM-DD')ORDER_DATE
+,nvl(Comp_units,0)Comp_units
+,total_units
+,round(nvl(Comp_units,0)/total_units,3)Auth_Rate
+,round(sqrt(round(nvl(Comp_units,0)/total_units,2)*(1-round(nvl(Comp_units,0)/total_units,2))/total_units),5) Auth_STD
+
+from
+(
+select paymentserviceid
+,order_date
+,count(transactionid)Comp_units
+--select *
+
+from
+(
+select bin
+,paymentserviceid
+,rank() over (partition by divisionorderid order by transactionid)cpg_attempt
+,trunc(orderdate)order_date
+,transactionid
+,newstatus
+,(select contract_term_code from AUTH_STAGING_DFACT_VW where payment_id = (select payment_id from rcn_auth_trans where cpg_transaction_id = transactionid and rownum < 2))Sub_Type
+
+--select *
+from EREPORT.cpg_transactions ct
+
+where creationdate between trunc(sysdate) - 75 and trunc(sysdate) - 1
+and orderdate >= trunc(sysdate) - 75
+and transactiontype = 'Authorize'
+and subscriptionid is not null
+and renewattnum is not null
+and oldstatus = 'New'
+and renewattnum in ('1')
+and paymentmethodid in ('AmericanExpress','Visa','Discover','MasterCard')
+--and bin = '414720'
+--and addedexpiryyears is not null
+)
+
+where cpg_attempt = '1'
+and sub_type = 'Year 1'
+and newstatus = 'Completed'
+
+group by paymentserviceid
+,order_date
+
+)Completed
+
+right join
+
+(
+select paymentserviceid
+,order_date
+,count(transactionid)total_units
+--select *
+
+from
+(
+select bin
+,paymentserviceid
+,rank() over (partition by divisionorderid order by transactionid)cpg_attempt
+,trunc(orderdate)order_date
+,transactionid
+,(select contract_term_code from AUTH_STAGING_DFACT_VW where payment_id = (select payment_id from rcn_auth_trans where cpg_transaction_id = transactionid and rownum < 2))Sub_Type
+
+--select *
+from EREPORT.cpg_transactions ct
+
+where creationdate between trunc(sysdate) - 75 and trunc(sysdate) - 1
+and orderdate >= trunc(sysdate) - 75
+and transactiontype = 'Authorize'
+and subscriptionid is not null
+and renewattnum is not null
+and oldstatus = 'New'
+and renewattnum in ('1')
+and paymentmethodid in ('AmericanExpress','Visa','Discover','MasterCard')
+--and bin = '414720'
+--and addedexpiryyears is not null
+)
+
+where cpg_attempt = '1'
+and sub_type = 'Year 1'
+
+group by paymentserviceid
+,order_date
+
+)Total
+
+on Total.paymentserviceid = Completed.paymentserviceid
+and Total.order_date = Completed.order_date
+
+--where Total_units > 50
+
+order by paymentserviceid,order_date
+
+)Stats
+
+left join
+
+(
+
+select paymentserviceid
+,count(transactionid)total_units
+--select *
+
+from
+(
+select bin
+,paymentserviceid
+,rank() over (partition by divisionorderid order by transactionid)cpg_attempt
+,trunc(orderdate)order_date
+,transactionid
+,(select contract_term_code from AUTH_STAGING_DFACT_VW where payment_id = (select payment_id from rcn_auth_trans where cpg_transaction_id = transactionid and rownum < 2))Sub_Type
+
+--select *
+from EREPORT.cpg_transactions ct
+
+where creationdate between trunc(sysdate) - 75 and trunc(sysdate) - 1
+and orderdate >= trunc(sysdate) - 75
+and transactiontype = 'Authorize'
+and subscriptionid is not null
+and renewattnum is not null
+and oldstatus = 'New'
+and renewattnum in ('1')
+and paymentmethodid in ('AmericanExpress','Visa','Discover','MasterCard')
+--and bin = '414720'
+--and addedexpiryyears is not null
+)
+
+where cpg_attempt = '1'
+and sub_type = 'Year 1'
+
+group by paymentserviceid
+
+)All_Data
+on All_Data.paymentserviceid = Stats.paymentserviceid
+
+where all_Data.total_units > 10000
+
+"""
+
+cur = EQUcon.cursor()
+cur.execute(query)
+
+with open('CUSUM_Data.csv','wb+') as filey:
+    csv.register_dialect("custom", delimiter=",")
+    writer = csv.writer(filey, dialect = 'custom')
+    writer.writerow([i[0] for i in cur.description])
+
+    for result in cur:
+        writer.writerow(result)
+
+filey.close()
+#EQUcon.close()
+
+print "Equator Done"
